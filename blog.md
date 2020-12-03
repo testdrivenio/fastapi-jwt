@@ -53,7 +53,7 @@ export PYTHONPATH=$PWD
 Install FastAPI:
 
 ```
-(venv)$ pip3 install fastapi==0.61.1 uvicorn==0.11.8 python-decouple==3.3
+(venv)$ pip3 install fastapi==0.62.0 uvicorn==0.12.3 python-decouple==3.3
 ```
 
 
@@ -71,6 +71,8 @@ Next, create the following files and folders:
 In the *main.py* file, define an entry point for running the application:
 
 ```python
+# main.py
+
 import uvicorn
 
 if __name__ == "__main__":
@@ -82,6 +84,8 @@ Here, we instructed the file to run a [Uvicorn](https://www.uvicorn.org/) server
 Before starting the server via the entry point file, create a base route in *app/api.py*:
 
 ```python
+# app/api.py
+
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -103,12 +107,12 @@ Navigate to [http://localhost:8000](http://localhost:8000) in your browser. You 
 
 ```
 {
-    "message":"Welcome to your blog!."
+    "message": "Welcome to your blog!."
 }
 ```
 ## What Are We Building?
 
-For the remainder of this tutorial, you'll be building a secured mini-blog CRUD app for creating, reading, updating, and deleting blogposts. By the end, your app will look like this:
+For the remainder of this tutorial, you'll be building a secured mini-blog CRUD app for creating, reading, updating, and deleting blog posts. By the end, your app will look like this:
 
 ![Simple MiniBlog](https://res.cloudinary.com/adeshina/image/upload/v1604438959/es41rkejx2mvpv7bqjkk.gif)
 
@@ -117,6 +121,8 @@ For the remainder of this tutorial, you'll be building a secured mini-blog CRUD 
 Before we proceed, let's define the schema for the posts. In `model.py`, add:
 
 ```python
+# app/models.py
+
 from pydantic import BaseModel, Field, EmailStr
 
 class PostSchema(BaseModel):
@@ -138,6 +144,8 @@ class PostSchema(BaseModel):
 Start by importing the PostSchema then adding a list of dummy posts and an empty user dictionary variable in *app/api.py*:
 
 ```json
+# app/api.py
+
 from app.model import PostSchema
 
 posts = [
@@ -153,6 +161,8 @@ users = {}
 Then, add the route handler for getting all the posts and an individual post by ID:
 
 ```python
+# app/api.py
+
 @app.get("/post", tags=["posts"])
 async def get_posts() -> dict:
     return { "data": posts }
@@ -179,10 +189,12 @@ Just below the GET route, add the following handler for creating a new post:
 
 
 ```python
+# app/api.py
+
 @app.post("/post", tags=["posts"])
 async def add_post(post: PostSchema) -> dict:
     post.id = len(posts) + 1
-    posts.append(post)
+    posts.append(post.dict())
     return {
         "data": "post added."
     }
@@ -207,15 +219,35 @@ You should see:
 
 ## PUT Route
 
-Next, add the route for updating the post:
+Next, add the route for updating the post. Before doing that, we need to update the models with `PostUpdateSchema`.
 
 ```python
+# app/models.py
+
+class PostUpdateSchema(BaseModel):
+    title: str = Field(...)
+    content: str = Field(...)
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "title": "Securing FastAPI applications with JWT(Updated).",
+                "content": "In this tutorial, you'll learn how to secure your application by enabling authentication using JWT. We'll be using PyJWT to sign, encode and decode JWT tokens....(Updated)",
+            }
+        }
+```
+
+```python
+#app/api.py
+
+from app.model import PostUpdateSchema
+
 @app.put("/post/{id}", tags=["posts"])
-async def update_post(id: int, body: dict) -> dict:
+async def update_post(id: int, body: PostUpdateSchema) -> dict:
     for post in posts:
         if post["id"] == id:
-            post["title"] = body["title"]
-            post["content"] = body["content"]
+            post["title"] = body.title
+            post["content"] = body.content
             return {
                 "data": f"post with id {id} has been updated."
             }
@@ -232,6 +264,8 @@ So, we checked for the post with an ID matching the one supplied and then, if fo
 Next, add the delete route:
 
 ```python
+# app/api.py
+
 @app.delete("/post/{id}", tags=["posts"])
 async def delete_post(id: int) -> dict:
     for post in posts:
@@ -248,34 +282,36 @@ async def delete_post(id: int) -> dict:
 
 ## Building Authentication
 
-In this section, we'll build the user authentication system which comprises of registration route, signing in and singing out routes, JWT token handler and bearer. We'll begin by building the JWT components as the tokens will be used for user authentication activities.
+In this section, we'll build the user authentication system which comprises of registration route, signing in and singing out routes, JWT token handler, and bearer. We'll begin by building the JWT components as the tokens will be used for user authentication activities.
 
 Before we begin, install PyJWT, the JWT library. We will be using and python-decouple for reading environment variables:
 
 ```sh
-pip3 install PyJWT
+(venv)$ pip3 install PyJWT
 ```
 
 ### JWT Handler
 
-The JWT Hander file will be responsible for signing and encoding, decoding and returning JWT tokens. In the *auth* folder, create a file `auth_handler.py`:
+The JWT Handler file will be responsible for signing and encoding, decoding, and returning JWT tokens. In the *auth* folder, create a file `auth_handler.py`:
 
 ```python
+# app/auth/auth_handler.py
+
 import time
 from typing import Dict
 import jwt
 from decouple import config
 
+JWT_SECRET = config("secret")
+JWT_ALGORITHM = config("algorithm")
+
 def token_response(token: str):
     return {
         "access_token": token
     }
-
-JWT_SECRET = config("secret")
-JWT_ALGORITHM = config("algorithm")
 ```
 
-In the code block above, we start by importing the time, typing and jwt module. The time module is responsible for setting an expiry for the tokens. Every JSON Web Token has an expiry date and or time where it becomes invalid. The `jwt` module is going to be responsible for encoding and decoding generated token strings. Lastly, the `token_response` function is a helper function for returning generated tokens.
+In the code block above, we start by importing the time, typing, and jwt module. The time module is responsible for setting an expiry for the tokens. Every JSON Web Token has an expiry date and or time where it becomes invalid. The `jwt` module is going to be responsible for encoding and decoding generated token strings. Lastly, the `token_response` function is a helper function for returning generated tokens.
 
 
 > JSON Web Tokens are encoded into strings from a dictionary payload.
@@ -291,12 +327,14 @@ algorithm=HS256
 
 The secret in the environment file should be substituted with something stronger and should not be disclosed. It is used in the encoding and decoding process of JWT strings.
 
-The algorithm value on the other hand is the type of algorithm used in  the encoding process.
+The algorithm value on the other hand is the type of algorithm used in the encoding process.
 
 Back to `auth_handler.py`, write the functions for signing and decoding the JWT string:
 
 
 ```python
+# app/auth/auth_handler.py
+
 def signJWT(user_id: str) -> Dict[str, str]:
     payload = {
         "user_id": user_id,
@@ -307,11 +345,13 @@ def signJWT(user_id: str) -> Dict[str, str]:
     return token_response(token)
 ```
 
-In the `signJWT` function, we define the payload, a dictionary containing the user_id passed into the function and an expiry time of 10 minutes from when it is generated. Next, we create a token string comprising of the payload, the secret and the algorithm type and then return it.
+In the `signJWT` function, we define the payload, a dictionary containing the user_id passed into the function, and an expiry time of 10 minutes from when it is generated. Next, we create a token string comprising of the payload, the secret, and the algorithm type and then return it.
 
 Then the `decodeJWT` function:
 
 ```python
+# app/auth/auth_handler.py
+
 def decodeJWT(token: str) -> dict:
     try:
         decoded_token = jwt.decode(token.encode(), JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -320,23 +360,27 @@ def decodeJWT(token: str) -> dict:
         return {}
 ```
 
-The `decodeJWT` function takes the token and decodes it with the aid of the `jwt` module and then stores it in a `decoded_token` variable. Next, we return the decoded_token if the expiry time is valid, otherwise return None.
+The `decodeJWT` function takes the token and decodes it with the aid of the `jwt` module and then stores it in a `decoded_token` variable. Next, we return the decoded_token if the expiry time is valid, otherwise, return None.
 
 ### JWT Bearer
 
 The JWTBearer class is a subclass of FastAPI's **HTTPBearer** class that will be used to persist authentication on our routes. Create a new file `auth_bearer.py` in the auth folder:
 
 ```python
+# app/auth/auth_bearer.py
+
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .auth_handler import decodeJWT
 ```
 
-We started off by importing the Request and HTTPException class from FastAPI after which we imported the HTTPBearer and HTTPAuthorizationCredentials from `fastapi.security` module and lastly, imported the `decodeJWT` function.
+We started by importing the Request and HTTPException class from FastAPI after which we imported the HTTPBearer and HTTPAuthorizationCredentials from `fastapi.security` module and lastly, imported the `decodeJWT` function.
 
 Next, let's build the JWTBearer subclass:
 
 ```python
+# app/auth/auth_bearer.py
+
 class JWTBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
         super(JWTBearer, self).__init__(auto_error=auto_error)
@@ -372,21 +416,23 @@ This method helps in verifying if a token passed is valid. The method takes a jw
 
 #### The __call__ method
 
-In the `__call__` method, we defined a variable credentials of type `HTTPAuthorizationCredentials` which is filled when the JWTBearer class is invoked. We then proceed to check if the credentials passed in the course of invoking the class is valid:
+In the `__call__` method, we defined a variable credential of type `HTTPAuthorizationCredentials` which is filled when the JWTBearer class is invoked. We then proceed to check if the credentials passed in the course of invoking the class is valid:
 
-    1. If the credential scheme isn't a Bearer scheme, raise an exception for invalid token scheme.
+    1. If the credential scheme isn't a Bearer scheme, raise an exception for an invalid token scheme.
     
     2. If a bearer token was passed, verify that the JWT token is valid.
     
-If no credentials was gotten, raise an invalid authorization error.
+If no credentials were gotten, raise an invalid authorization error.
 
-With the token register in place. Let's add routes for signing up, signing in and logging out users. 
+With the token register in place. Let's add routes for signing up, signing in, and logging out users. 
 
 ### User registration and Login
 
 In `model.py`, add the user schema:
 
-```pytho
+```python
+# app/models.py
+
 class UserSchema(BaseModel):
     fullname: str = Field(...)
     email: EmailStr = Field(...)
@@ -426,6 +472,8 @@ from app.model import PostSchema, UserSchema, UserLoginSchema
 Next, add the user sign up route:
 
 ```python
+# app/api.py
+
 @app.post("/user/signup", tags=["User"])
 async def create_user(user: UserSchema = Body(...)):
     users.append(user)
@@ -439,6 +487,8 @@ Test it on the [interactive documentation](http://localhost:8000/docs)
 Next, define a helper function to check if a user exists:
 
 ```python
+# app/api.py
+
 def check_user(data: UserLoginSchema):
     print(data)
     for user in users:
@@ -450,6 +500,8 @@ def check_user(data: UserLoginSchema):
 The above function checks if a user exists before creating a JWToken with the user email. Next, define the login route:
 
 ```python
+# app/api.py
+
 @app.post("/user/login", tags=["User"])
 async def user_login(user: UserLoginSchema = Body(...)):
     if check_user(user):
@@ -461,36 +513,40 @@ async def user_login(user: UserLoginSchema = Body(...)):
 
 Again, try the login route by first creating a user and then logging in. 
 
-> You're creating a new user because the application reloads on every change ton the application.
+> You're creating a new user because the application reloads on every change to the application.
 
 
 ## Securing Routes.
 
-With the authentication in place, let's secure the create, update and delete route. To secure the routes, we'll be setting a dependency for our routes with FastAPI's [Depends](https://fastapi.tiangolo.com/tutorial/dependencies/).
+With the authentication in place, let's secure the create, update, and delete route. To secure the routes, we'll be setting a dependency for our routes with FastAPI's [Depends](https://fastapi.tiangolo.com/tutorial/dependencies/).
 
 Start by importing the JWTBearer class:
 
 ```python
+# app/api.py
+
 from app.auth.auth_bearer import JWTBearer
 ```
 
 In the GET, CREATE and DELETE post routes, add the dependencies argument to the `@app` property: such that they look exactly like this
 
 ```python
+# app/api.py
+
 @app.post("/post", dependencies=[Depends(JWTBearer())], tags=["posts"])
 async def add_post(post: PostSchema) -> dict:
     post.id = len(posts) + 1
-    posts.append(post)
+    posts.append(post.dict())
     return {
         "data": "post added."
     }
 
 @app.put("/post/{id}", dependencies=[Depends(JWTBearer())], tags=["posts"])
-async def update_post(id: int, body: dict) -> dict:
+async def update_post(id: int, body: PostUpdateSchema) -> dict:
     for post in posts:
         if post["id"] == id:
-            post["title"] = body["title"]
-            post["content"] = body["content"]
+            post["title"] = body.title
+            post["content"] = body.content
             return {
                 "data": f"post with id {id} has been updated."
             }
@@ -537,4 +593,5 @@ Check your understanding by reviewing the objectives from the beginning of this 
 
 Looking for some challenges?
 1. Hash the passwords before saving it using passlib or bcrypt.
-2. Move the user and post from temporary storage to either MongoDB or MySQL. You can follow the steps in [Building a CRUD App with FastAPI and MongoDB](https://testdriven.io/blog/fastapi-mongo/) to setup a MongoDB database and deploy to Heroku.
+2. Move the user and post from temporary storage to either MongoDB or MySQL. You can follow the steps in [Building a CRUD App with FastAPI and MongoDB](https://testdriven.io/blog/fastapi-mongo/) to set up a MongoDB database and deploy to Heroku.
+3. Add a refresh token to automatically issue new JWT when it expires. You can start by reading a great explanation by the [author of flask-jwt](https://stackoverflow.com/questions/46197050/flask-jwt-extend-validity-of-token-on-each-request/46284627#46284627)
