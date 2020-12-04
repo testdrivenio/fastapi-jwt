@@ -40,6 +40,7 @@ Next, create the following files and folders:
 ```sh
 fastapi-jwt
 ├── app
+│   ├── __init__.py
 │   ├── api.py
 │   ├── auth
 │   └── model.py
