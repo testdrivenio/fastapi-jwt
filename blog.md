@@ -252,71 +252,6 @@ You should see:
 }
 ```
 
-### PUT Route
-
-Next, add the route for updating the post. Before doing that, we need to update the models with `PostUpdateSchema`:
-
-```python
-# app/model.py
-
-class PostUpdateSchema(BaseModel):
-    title: str = Field(...)
-    content: str = Field(...)
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "title": "Securing FastAPI applications with JWT(Updated).",
-                "content": "In this tutorial, you'll learn how to secure your application by enabling authentication using JWT. We'll be using PyJWT to sign, encode and decode JWT tokens....(Updated)",
-            }
-        }
-```
-
-Route:
-
-```python
-#app/api.py
-
-from app.model import PostUpdateSchema
-
-@app.put("/posts/{id}", tags=["posts"])
-async def update_post(id: int, body: PostUpdateSchema) -> dict:
-    for post in posts:
-        if post["id"] == id:
-            post["title"] = body.title
-            post["content"] = body.content
-            return {
-                "data": f"post with id {id} has been updated."
-            }
-
-    return {
-        "data": f"post with id {id} not found."
-    }
-```
-
-So, we checked for the post with an ID matching the one supplied and then, if found, updated the post's title and content.
-
-### DELETE Route
-
-Next, add the delete route:
-
-```python
-# app/api.py
-
-@app.delete("/posts/{id}", tags=["posts"])
-async def delete_post(id: int) -> dict:
-    for post in posts:
-        if int(post["id"]) == id:
-            posts.remove(post)
-            return {
-                "data": f"post with id {id} has been removed."
-            }
-
-    return {
-        "data": f"post with id {id} not found."
-    }
-```
-
 ## JWT Authentication
 
 In this section, we'll build the user authentication system which comprises of registration, signing in, and singing out routes as well as a JWT token handler and a class to handle the bearer token. We'll begin by building the JWT components as the tokens will be used for user authentication activities.
@@ -385,7 +320,7 @@ Back in *auth_handler.py*, add the function for signing the JWT string:
 def signJWT(user_id: str) -> Dict[str, str]:
     payload = {
         "user_id": user_id,
-        "expires": time.time() + 2400
+        "expires": time.time() + 600
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -448,9 +383,11 @@ class UserLoginSchema(BaseModel):
 Next, update the imports in *app/api.py*:
 
 ```python
+# app/api.py
+
 from fastapi import FastAPI, Body
 
-from app.model import PostSchema, PostUpdateSchema, UserSchema, UserLoginSchema
+from app.model import PostSchema, UserSchema, UserLoginSchema
 from app.auth.auth_handler import signJWT
 ```
 
@@ -523,7 +460,7 @@ With the authentication in place, let's secure the create, update, and delete ro
 
 ### JWT Bearer
 
-TODO Amal: add brief explanation of what the `JWTBearer` class will be used for
+Now we need to verify each protected route, by checking whether the request is authorized or not. This is done by scanning the request for the JWT under `Authorization` header. FastAPI provides the basic validation using the `HTTPBearer` class. We use the *HTTPBearer* class to extract and parse the token and verify it using the `decodeJWT` function defined in *app/auth/auth_handler.py*. 
 
 Create a new file in the "auth" folder called *auth_bearer.py*:
 
@@ -592,12 +529,12 @@ Start by updating the imports by adding the `JWTBearer` class as well as `Depend
 
 from fastapi import FastAPI, Body, Depends
 
-from app.model import PostSchema, PostUpdateSchema, UserSchema, UserLoginSchema
+from app.model import PostSchema, UserSchema, UserLoginSchema
 from app.auth.auth_bearer import JWTBearer
 from app.auth.auth_handler import signJWT
 ```
 
-In the GET, CREATE, and DELETE routes, add the `dependencies` argument to the `@app` property like so:
+In the POST route, add the `dependencies` argument to the `@app` property like so:
 
 ```python
 # app/api.py
@@ -608,35 +545,6 @@ async def add_post(post: PostSchema) -> dict:
     posts.append(post.dict())
     return {
         "data": "post added."
-    }
-
-
-@app.put("/posts/{id}", dependencies=[Depends(JWTBearer())], tags=["posts"])
-async def update_post(id: int, body: PostUpdateSchema) -> dict:
-    for post in posts:
-        if post["id"] == id:
-            post["title"] = body.title
-            post["content"] = body.content
-            return {
-                "data": f"post with id {id} has been updated."
-            }
-
-    return {
-        "data": f"post with id {id} not found."
-    }
-
-
-@app.delete("/posts/{id}", dependencies=[Depends(JWTBearer())], tags=["posts"])
-async def delete_post(id: int) -> dict:
-    for post in posts:
-        if int(post["id"]) == id:
-            posts.remove(post)
-            return {
-                "data": f"post with id {id} has been removed."
-            }
-
-    return {
-        "data": f"post with id {id} not found."
     }
 ```
 
@@ -671,8 +579,3 @@ Looking for some challenges?
 1. Hash the passwords before saving it using passlib or bcrypt.
 2. Move the user and post from temporary storage to either MongoDB or MySQL. You can follow the steps in [Building a CRUD App with FastAPI and MongoDB](https://testdriven.io/blog/fastapi-mongo/) to set up a MongoDB database and deploy to Heroku.
 3. Add a refresh token to automatically issue new JWT when it expires. You can start by reading a great explanation by the [author of flask-jwt](https://stackoverflow.com/questions/46197050/flask-jwt-extend-validity-of-token-on-each-request/46284627#46284627)
-
-## TODO Amal
-
-1. log out route
-1. remove PUT and DELETE routes
