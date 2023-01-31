@@ -31,7 +31,7 @@ def check_user(data: UserLoginSchema):
 
 @app.get("/", tags=["root"])
 async def read_root() -> dict:
-    return {"message": "Welcome to your blog!."}
+    return {"message": "Welcome to your blog!"}
 
 
 @app.get("/posts", tags=["posts"])
@@ -64,7 +64,7 @@ async def add_post(post: PostSchema) -> dict:
 
 @app.post("/user/signup", tags=["user"])
 async def create_user(user: UserSchema = Body(...)):
-    users.append(user) # replace with db call, making sure to hash the password first
+    users.append(user)  # replace with db call, making sure to hash the password first
     return signJWT(user.email)
 
 
