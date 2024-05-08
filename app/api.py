@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Body, Depends
 
-from app.model import PostSchema, UserSchema, UserLoginSchema
 from app.auth.auth_bearer import JWTBearer
-from app.auth.auth_handler import signJWT
+from app.auth.auth_handler import sign_jwt
+from app.model import PostSchema, UserSchema, UserLoginSchema
 
 
 posts = [
@@ -64,14 +64,14 @@ async def add_post(post: PostSchema) -> dict:
 
 @app.post("/user/signup", tags=["user"])
 async def create_user(user: UserSchema = Body(...)):
-    users.append(user)  # replace with db call, making sure to hash the password first
-    return signJWT(user.email)
+    users.append(user) # replace with db call, making sure to hash the password first
+    return sign_jwt(user.email)
 
 
 @app.post("/user/login", tags=["user"])
 async def user_login(user: UserLoginSchema = Body(...)):
     if check_user(user):
-        return signJWT(user.email)
+        return sign_jwt(user.email)
     return {
         "error": "Wrong login details!"
     }
